@@ -1,6 +1,5 @@
 // Import Express.js
 const express = require('express');
-const fetch = require('node-fetch'); // move fetch here
 
 // Create an Express app
 const app = express();
