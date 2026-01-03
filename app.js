@@ -24,14 +24,46 @@ app.get('/', (req, res) => {
 });
 
 // Route for POST requests
-app.post('/', (req, res) => {
-  const timestamp = new Date().toISOString().replace('T', ' ').slice(0, 19);
-  console.log(`\n\nWebhook received ${timestamp}\n`);
-  console.log(JSON.stringify(req.body, null, 2));
-  res.status(200).end();
-});
+app.post('/', async (req, res) => {
+  const data = req.body;
+  console.log('📩 Webhook received:', JSON.stringify(data, null, 2));
 
-// Start the server
-app.listen(port, () => {
-  console.log(`\nListening on port ${port}\n`);
+  try {
+    const entry = data.entry[0];
+    const change = entry.changes[0].value;
+
+    if (!change.messages) {
+      return res.sendStatus(200); // ignore non-message events
+    }
+
+    const message = change.messages[0];
+    const sender = message.from;
+    const text = message.text.body;
+    const phoneNumberId = change.metadata.phone_number_id;
+
+    // Build reply payload
+    const payload = {
+      messaging_product: "whatsapp",
+      to: sender,
+      type: "text",
+      text: { body: `Hello! You said: ${text}` }
+    };
+
+    // Send reply via Meta API
+    await fetch(`https://graph.facebook.com/v23.0/${phoneNumberId}/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+
+    console.log('✅ Reply sent');
+
+  } catch (err) {
+    console.error('❌ Error sending reply:', err);
+  }
+
+  res.sendStatus(200);
 });
