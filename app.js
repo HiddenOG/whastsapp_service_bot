@@ -7,20 +7,15 @@ const app = express();
 // Middleware to parse JSON bodies
 app.use(express.json());
 
-// Environment variables
+// Set port and verify_token
 const port = process.env.PORT || 3000;
-const verifyToken = process.env.VERIFY_TOKEN;      // webhook verification
-const whatsappToken = process.env.WHATSAPP_TOKEN; // sending messages
+const verifyToken = process.env.VERIFY_TOKEN;
 
-// --------------------
-// GET: Webhook verification
-// --------------------
+// Route for GET requests
 app.get('/', (req, res) => {
-  const mode = req.query['hub.mode'];
-  const challenge = req.query['hub.challenge'];
-  const verifyTokenFromMeta = req.query['hub.verify_token'];
+  const { 'hub.mode': mode, 'hub.challenge': challenge, 'hub.verify_token': token } = req.query;
 
-  if (mode === 'subscribe' && verifyTokenFromMeta === verifyToken) {
+  if (mode === 'subscribe' && token === verifyToken) {
     console.log('WEBHOOK VERIFIED');
     res.status(200).send(challenge);
   } else {
@@ -28,57 +23,15 @@ app.get('/', (req, res) => {
   }
 });
 
-// --------------------
-// POST: Receive messages
-// --------------------
-app.post('/', async (req, res) => {
-  const data = req.body;
-  console.log('\n📩 Webhook received\n');
-  console.log(JSON.stringify(data, null, 2));
-
-  try {
-    const entry = data.entry[0];
-    const change = entry.changes[0].value;
-
-    if (!change.messages) {
-      return res.sendStatus(200); // ignore non-message events
-    }
-
-    const message = change.messages[0];
-    const sender = message.from;
-    const text = message.text.body;
-    const phoneNumberId = change.metadata.phone_number_id;
-
-    const url = `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`;
-
-    const payload = {
-      messaging_product: "whatsapp",
-      to: sender,
-      type: "text",
-      text: {
-        body: `Hello! You said: ${text}`
-      }
-    };
-
-    await fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${whatsappToken}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(payload)
-    });
-
-    console.log('✅ Reply sent');
-
-  } catch (err) {
-    console.error('❌ Error handling message:', err);
-  }
-
-  res.sendStatus(200);
+// Route for POST requests
+app.post('/', (req, res) => {
+  const timestamp = new Date().toISOString().replace('T', ' ').slice(0, 19);
+  console.log(`\n\nWebhook received ${timestamp}\n`);
+  console.log(JSON.stringify(req.body, null, 2));
+  res.status(200).end();
 });
 
-// --------------------
+// Start the server
 app.listen(port, () => {
-  console.log(`🚀 Server running on port ${port}`);
+  console.log(`\nListening on port ${port}\n`);
 });
